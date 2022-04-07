@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+
+<html>
+
+<head>
+  <title>✎✎MyRoom</title>
+<style>
+body {
+  overflow: hidden
+}
+#info {
+  position: absolute;
+
+  width: 100%;
+  padding: 10px;
+  text-align: center;
+  color: #ffff00
+}
+
+</style>
+</head>
+
+<body>
+
+<div id="info">My Room<br/>
+Click Button to control lamp light up & dim out
+	<br/>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/three@0.113.0/build/three.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.113.0/examples/js/loaders/MTLLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.113.0/examples/js/loaders/OBJLoader.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/three@0.113.0/examples/js/controls/OrbitControls.js"></script>
+<script>
+
+class Button {
+  constructor(color, name) {
+    this.on = false;
+    this.hsl = color.getHSL();
+    this.obj = this.makeButton(name);
+  }
+
+  get isOn() {
+    return this.on;
+  }
+
+  toggle() {
+    this.on = !this.on;
+    this.update();
+  }
+
+  update() {
+    if (this.on) {
+      this.obj.scale.set (1,0.5,1);
+      this.obj.children[0].material.color.setHSL
+        (this.hsl.h, 0, 1);
+    } else {
+    	this.obj.scale.set(1,1,1);
+    	this.obj.children[0].material.color.setHSL
+         (this.hsl.h, this.hsl.s, this.hsl.l);
+    }
+  }
+
+
+  makeButton(name) {
+    let mesh = new THREE.Mesh(new THREE.CylinderGeometry( 1.2, 1.2, 2 ),
+      new THREE.MeshPhongMaterial());
+    let button = new THREE.Object3D();
+    mesh.castShadow = true;
+     mesh.receiveShadow = true;
+    button.add(mesh);
+    mesh.material.color.setHSL (this.hsl.h, this.hsl.s, this.hsl.l)
+    mesh.position.y = 1.5;
+    button.name = name;  // a string
+    return button;
+  }
+
+}
+
+var renderer, camera, controls, scene;
+var table;
+var raycaster = new THREE.Raycaster();
+var pickables = [];
+var mouse = new THREE.Vector2()
+var lamb =new THREE.Object3D();
+var chair =new THREE.Object3D();
+var flagLamp = false;
+var flagBigLamp = false;
+var light1,light2;
+var KP = 150;
+var KD = 5;
+var yy, vv;
+var gravity = true;
+var yref = -0.4;
+
+
+init();
+animate();
+function init() {
+
+  renderer = new THREE.WebGLRenderer({
+	  antialias: true
+	});
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setClearColor(0x888888);
+  document.body.appendChild(renderer.domElement);
+
+  camera = new THREE.PerspectiveCamera(50, window.innerWidth / window.innerHeight, 1, 1000);
+  camera.position.y = 100;
+  camera.position.z = 50;  // important
+
+  controls = new THREE.OrbitControls(camera, renderer.domElement);
+
+  scene = new THREE.Scene();
+
+  //var gridXZ = new THREE.GridHelper(100, 10, 'red', 'white');
+  //scene.add(gridXZ);
+  //axes = new THREE.AxisHelper (20);
+  //scene.add (axes);
+  table = tableBuild();
+	scene.add(table);
+  ///////////
+
+  var texture = new THREE.TextureLoader().load('https://i.imgur.com/32PSEWf.jpg');
+  	texture.wrapS = THREE.RepeatWrapping;
+  	texture.wrapT = THREE.RepeatWrapping;
+   texture.repeat.set(10, 10);
+   var floor = new THREE.PlaneGeometry(160,160,1,1);
+   floorMesh = new THREE.Mesh(floor,new THREE.MeshPhongMaterial({
+     map: texture,
+     side: THREE.DoubleSide
+   }));
+   floorMesh.receiveShadow = true;
+   //floorMesh.castShadow = true;
+   floorMesh.rotation.x=Math.PI/2;
+   scene.add (floorMesh);
+
+  //var floor = new THREE.Mesh(new THREE.PlaneGeometry(400, 400, 130, 130),
+    //new THREE.MeshLambertMaterial());
+  //floor.rotation.x = -Math.PI / 2;
+  //scene.add(floor);
+  //////
+
+  var light = new THREE.AmbientLight( 0x444444 ); // soft white light
+	scene.add( light );
+
+  ///////
+  //  light1 = new THREE.SpotLight(0xffffff, 1);
+   light1=new THREE.SpotLight(0xffffff, 1);
+   light2= new THREE.SpotLight(0xffffff, 1);
+    light1.position.set(-10, 36, -10);
+    light1.angle = Math.PI /3.4;
+    light1.target.position.set(-10,10,-10);
+    light1.penumbra = 0.5;
+    light1.distance = 1000;
+    scene.add(light1);
+    scene.add(light1.target);
+  //  scene.add ( new THREE.CameraHelper (light1.shadow.camera) );
+
+    // shadow map settings
+    //light1.castShadow = true;
+    light1.shadow.mapSize.width = 1024;
+    light1.shadow.mapSize.height = 1024;
+    light1.shadow.camera.near = 1;
+    light1.shadow.camera.far = 1000;
+    light1.shadow.camera.fov = 30;
+
+//  scene.add(helper = new THREE.SpotLightHelper(light1, 5));
+light2.position.set(0, 160, -100);
+light2.angle = Math.PI/6;
+light2.target.position.set(0,0,0);
+light2.penumbra = 0.5;
+light2.distance = 1000;
+scene.add(light2);
+scene.add(light2.target);
+//  scene.add ( new THREE.CameraHelper (light1.shadow.camera) );
+
+// shadow map settings
+//light2.castShadow = true;
+light2.shadow.mapSize.width = 1024;
+light2.shadow.mapSize.height = 1024;
+light2.shadow.camera.near = 100;
+light2.shadow.camera.far = 1000;
+light2.shadow.camera.fov = 30;
+////////////////////////
+
+  table.castShadow = true;
+  table.receiveShadow = true; // self shadow
+
+  table.traverse (
+   function (mesh) {
+     if (mesh instanceof THREE.Mesh) {
+       mesh.castShadow = true;
+        mesh.receiveShadow = true;
+      }
+    }
+  );
+  ////////////////////
+  button = new Button(new THREE.Color (0xffff22), '1Button');
+  scene.add(button.obj);
+  button.obj.position.set(-17.7,27,-15.7);
+  pickables.push(button.obj);
+
+  button2 = new Button(new THREE.Color (0xff2222), '2Button');
+  scene.add(button2.obj);
+  button2.obj.position.set(11,27,-2);
+  pickables.push(button2.obj);
+
+  document.addEventListener('mousedown', onDocumentMouseDown, false);
+  ////////
+  ///////////
+
+
+
+    // lampmodel
+
+    var onProgress = function(xhr) {
+      if (xhr.lengthComputable) {
+        var percentComplete = xhr.loaded / xhr.total * 100;
+        console.log(Math.round(percentComplete, 2) + '% downloaded');
+      }
+    };
+
+    var onError = function(xhr) {};
+
+    //THREE.Loader.Handlers.add(/\.dds$/i, new THREE.DDSLoader());
+
+    var mtlLoader = new THREE.MTLLoader();
+    mtlLoader.setPath('items/');
+   	mtlLoader.load('deskLamp.mtl', function(materials) {
+
+      materials.preload();
+
+      var objLoader = new THREE.OBJLoader();
+      objLoader.setMaterials(materials);
+      objLoader.setPath('items/');
+      objLoader.load('deskLamp.obj', function(object) {
+
+  			lamp = unitize (object, 20);
+        lamp.position.x=-16;
+        lamp.position.y=26.5;
+        lamp.position.z=-14;
+        lamp.rotation.y=-Math.PI/4;
+        lamp.traverse (
+         function (mesh) {
+           if (mesh instanceof THREE.Mesh) {
+             mesh.castShadow = true;
+              mesh.receiveShadow = true;
+            }
+          }
+        );
+  			scene.add (lamp);
+        //lamp.position.z=50;
+
+  			object.traverse (
+  				function(mesh) {
+  					if (mesh instanceof THREE.Mesh) {
+  						mesh.material.side = THREE.DoubleSide;
+  					}
+  				});
+      }, onProgress, onError);
+
+    });
+
+
+/////////////
+//chairmodel
+// model
+
+var onProgress = function(xhr) {
+  if (xhr.lengthComputable) {
+    var percentComplete = xhr.loaded / xhr.total * 100;
+    console.log(Math.round(percentComplete, 2) + '% downloaded');
+  }
+};
+
+var onError = function(xhr) {};
+
+//THREE.Loader.Handlers.add(/\.dds$/i, new THREE.DDSLoader());
+
+var mtlLoader = new THREE.MTLLoader();
+mtlLoader.setPath('items/');
+mtlLoader.load('Chair.mtl', function(materials) {
+
+  materials.preload();
+
+  var objLoader = new THREE.OBJLoader();
+  objLoader.setMaterials(materials);
+  objLoader.setPath('items/');
+  objLoader.load('Chair.obj', function(object) {
+
+    chair = unitize (object, 30);
+    chair.position.x=-8;
+    //chair.position.y=26.5;
+    chair.position.z=14;
+    chair.rotation.y=Math.PI/4+Math.PI/2 ;
+    chair.traverse (
+     function (mesh) {
+       if (mesh instanceof THREE.Mesh) {
+         mesh.castShadow = true;
+          mesh.receiveShadow = true;
+        }
+      }
+    );
+    scene.add (chair);
+    //lamp.position.z=50;
+
+    object.traverse (
+      function(mesh) {
+        if (mesh instanceof THREE.Mesh) {
+          mesh.material.side = THREE.DoubleSide;
+        }
+      });
+  }, onProgress, onError);
+  //////////////
+});
+
+//////////
+buildPen();
+buildHolder();
+//var buttonBase = new THREE.Object3D();
+var buttonBase =new THREE.Mesh( new THREE.BoxGeometry( 5, 2, 5 ), new THREE.MeshPhongMaterial({
+  color: 0x333333
+}) );
+buttonBase.castShadow=true;
+buttonBase.receiveShadow=true;
+buttonBase.position.y=27;
+buttonBase.position.x=11;
+buttonBase.position.z=-2;
+//buttonBase.rotation.y=-Math.PI/20;
+scene.add(buttonBase);
+/////////////
+yy = 0;
+vv = 0;
+/////////
+  renderer.shadowMap.enabled = true;
+  renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+    window.addEventListener('resize', onWindowResize, false);
+}
+
+function feedbackForce () {
+	let f = -KP*(yy - yref) - KD*vv;
+  return f;
+}
+
+function animate() {
+  var f = feedbackForce();
+	if (gravity) //f.add (new THREE.Vector2(0, -9.8));
+  	f += (-20.8);
+  let dt = 0.05;
+  vv += f*dt;
+  yy += vv*dt;
+  if(flagLamp ){
+    yref = 0.4;
+    //console.log(yy);
+    if(yy>=0.2){
+      light1.intensity = 1;
+      light1.castShadow = true;
+    }
+    else{
+      light1.intensity = 0;
+      light1.castShadow = false;
+    }
+  }
+  else {
+    yref = -0.4;
+    light1.intensity = 0;
+    light1.castShadow = false;
+  }
+  if(flagBigLamp){
+    //light2 = new THREE.SpotLight(0xffffff, 1);
+    light2.intensity = 1;
+    light2.castShadow = true;
+  }
+  else{
+    light2.intensity = 0;
+    light2.castShadow = false;
+  }
+
+  controls.update();
+  renderer.render (scene, camera);
+
+  requestAnimationFrame (animate);
+}
+function onDocumentMouseDown(event) {
+
+  event.preventDefault();
+  mouse.x = (event.clientX / window.innerWidth) * 2 - 1;
+  mouse.y = -(event.clientY / window.innerHeight) * 2 + 1;
+
+  // find intersections
+  raycaster.setFromCamera(mouse, camera);
+  var intersects = raycaster.intersectObjects(pickables, true);
+  if (intersects.length > 0) {
+    let picked = intersects[0].object.parent.name;
+    switch (picked) {
+    case '1Button':
+    	button.toggle();
+      flagLamp=!flagLamp;
+
+      break;
+    case '2Button':
+    	button2.toggle();
+      flagBigLamp=!flagBigLamp;
+      break;
+    }
+  }
+
+}
+function onWindowResize() {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+function unitize (object, targetSize) {
+
+	// find bounding box of 'object'
+	var box3 = new THREE.Box3();
+	box3.setFromObject (object);
+	var size = new THREE.Vector3();
+	size.subVectors (box3.max, box3.min);
+	var center = new THREE.Vector3();
+	center.addVectors(box3.max, box3.min).multiplyScalar (0.5);
+
+	console.log ('center: ' + center.x + ', '+center.y + ', '+center.z );
+	console.log ('size: ' + size.x + ', ' +  size.y + ', '+size.z );
+	// uniform scaling according to objSize
+	var objSize = Math.max (size.x, size.y, size.z);
+	var scaleSet = targetSize/objSize;
+
+
+	var theObject =  new THREE.Object3D();
+	theObject.add (object);
+	object.scale.set (scaleSet, scaleSet, scaleSet);
+	object.position.set (-center.x*scaleSet, -center.y*scaleSet + size.y/2*scaleSet, -center.z*scaleSet);
+	//theObject.rotation.y = Math.PI/2;
+	return theObject;
+
+
+}
+
+function tableBuild(){
+	var Table = new THREE.Object3D();
+	var legGeo = new THREE.BoxGeometry( 1.5, 25, 1.5 );
+  var legGeo2 = new THREE.BoxGeometry( 1.5, 25, 1.5 );
+  var legGeo3 = new THREE.BoxGeometry( 1.5, 5, 1.5 );
+  var boxGeo = new THREE.BoxGeometry( 20, 22, 20 );
+  var deskGeo = new THREE.BoxGeometry( 50, 2, 25 );
+  var drawerGeo = new THREE.BoxGeometry( 18, 8, 1.5 );
+  var drawerGeo2 = new THREE.BoxGeometry( 18, 9.5, 1.5 );
+  var backGeo = new THREE.BoxGeometry( 44, 10, 0.5 );
+  //var drawerGeo3 = new THREE.BoxGeometry( 18, 9.5, 1.5 );
+  //var drawerGeo4 = new THREE.BoxGeometry( 18, 9.5, 1.5 );
+
+  var material = new THREE.MeshPhongMaterial({
+    map: new THREE.TextureLoader().load('https://i.imgur.com/FacFJ4W.jpg'),
+      color: 0xffef12
+    });
+  var tableLeg1 = new THREE.Mesh( legGeo, material );
+  var tableLeg2 = new THREE.Mesh( legGeo, material );
+  var tableLeg3 = new THREE.Mesh( legGeo2, material );
+  var tableBox = new THREE.Mesh( boxGeo, material );
+  var tableLeg4 = new THREE.Mesh( legGeo3, material );
+  var tableLeg5 = new THREE.Mesh( legGeo3, material );
+  var tableLeg6 = new THREE.Mesh( legGeo3, material );
+  var desk = new THREE.Mesh(deskGeo, material );
+  var drawer = new THREE.Mesh( drawerGeo, material );
+  var drawer2 = new THREE.Mesh( drawerGeo2, material );
+  //var drawer3 = new THREE.Mesh( drawerGeo3, material );
+  //var drawer4 = new THREE.Mesh( drawerGeo4, material );
+  var back = new THREE.Mesh( backGeo, material );
+
+  Table.add(tableLeg1);
+  Table.add(tableLeg2);
+  Table.add(tableLeg3);
+  Table.add(tableBox);
+  Table.add(tableLeg4);
+  Table.add(tableLeg5);
+  Table.add(tableLeg6);
+  Table.add(desk);
+  Table.add(drawer);
+  Table.add(drawer2);
+  Table.add(back);
+
+  tableLeg1.position.y=12.5;
+  tableLeg1.position.x=22;
+  tableLeg1.position.z=-20;
+
+  tableLeg2.position.y=12.5;
+  tableLeg2.position.x=-22;
+  tableLeg2.position.z=-20;
+
+  tableLeg3.rotation.x=Math.PI/2;
+  tableLeg3.position.y=0.75;
+  tableLeg3.position.x=-22;
+  tableLeg3.position.z=-10;
+
+  tableBox.position.z = -10;
+  tableBox.position.x = 12;
+  tableBox.position.y = 15;
+
+  tableLeg4.position.y= 2.5;
+  tableLeg4.position.x= 21;
+  tableLeg4.position.z= -0.75;
+
+  tableLeg5.position.y= 2.5;
+  tableLeg5.position.x= 3;
+  tableLeg5.position.z= -19.25;
+
+  tableLeg6.position.y= 2.5;
+  tableLeg6.position.x= 3;
+  tableLeg6.position.z= -0.75;
+
+  desk.position.y= 25.5;
+  desk.position.z=-10;
+
+  drawer.position.y= 20;
+  drawer.position.x= 12;
+  drawer.position.z= 0.75;
+
+  drawer2.position.y= 10;
+  drawer2.position.x= 12;
+  drawer2.position.z= 0.75;
+
+  back.position.z=-20.25;
+  back.position.y=20;
+	return Table;
+}
+function buildPen(){
+  var twoPen = new THREE.Object3D();
+  var Pen = new THREE.Object3D();
+  var Pen2 = new THREE.Object3D();
+  var bodyGeo = new THREE.CylinderGeometry( 0.5, 0.5, 8 );
+  var neckGeo = new THREE.CylinderGeometry( 0.25, 0.5, 2 );
+  var headGeo = new THREE.CylinderGeometry( 0, 0.25, 1.5 );
+  var bodyMat = new THREE.MeshPhongMaterial({
+    map: new THREE.TextureLoader().load('https://i.imgur.com/nicfpmo.jpg'),
+      color: 0xffffff
+    });
+    var neckMat = new THREE.MeshPhongMaterial({
+      map: new THREE.TextureLoader().load('https://i.imgur.com/jzSZbnA.jpg'),
+      //  color: 0xffef12
+      });
+      var headMat = new THREE.MeshPhongMaterial({
+        //map: new THREE.TextureLoader().load('https://i.imgur.com/FacFJ4W.jpg'),
+          color: 0x222222
+        });
+  var body= new THREE.Mesh( bodyGeo, bodyMat );
+  var neck= new THREE.Mesh( neckGeo, neckMat );
+  var head= new THREE.Mesh( headGeo, headMat );
+
+  body.castShadow = true;
+  body.receiveShadow = true;
+  neck.castShadow = true;
+  neck.receiveShadow = true;
+  head.castShadow = true;
+  head.receiveShadow = true;
+
+  body.position.y=4;
+  neck.position.y=9;
+  head.position.y=10.75;
+
+  Pen.add(body);
+  Pen.add(neck);
+  Pen.add(head);
+  Pen.rotation.z = Math.PI;
+
+  Pen2 = Pen.clone();
+  //Pen.add(Pen2);
+  Pen.position.y = 37.5;
+  Pen.position.x = 7.3;
+  //Pen.position.z = -3;
+  Pen.rotation.z = -Math.PI/10+Math.PI;
+  Pen2.position.y = 36.2;
+  Pen2.position.z = -3;
+  Pen2.position.x = 0.5;
+  Pen2.rotation.z = Math.PI/6+Math.PI;
+  twoPen.add(Pen);
+  twoPen.add(Pen2);
+  scene.add(twoPen);
+  twoPen.position.z=-15;
+  twoPen.position.x=-4+15;
+  //Pen2.position.y= 40;
+
+}
+function buildHolder(){
+  var Holder = new THREE.Object3D();
+	var barGeo = new THREE.BoxGeometry( 1, 7, 1 );
+  var barGeo2 = new THREE.BoxGeometry( 7, 1, 1 );
+  var barGeo3 = new THREE.BoxGeometry( 1, 1, 7 );
+  var barMat = new THREE.MeshPhongMaterial({
+    map: new THREE.TextureLoader().load('https://i.imgur.com/jzSZbnA.jpg'),
+    color: 0xffffff
+  });
+  var bar= new THREE.Mesh( barGeo, barMat );
+  var bar_2= new THREE.Mesh( barGeo, barMat );
+  var bar_3= new THREE.Mesh( barGeo, barMat );
+  var bar_4= new THREE.Mesh( barGeo, barMat );
+
+  var bar2= new THREE.Mesh( barGeo2, barMat );
+  var bar2_2= new THREE.Mesh( barGeo2, barMat );
+  var bar2_3= new THREE.Mesh( barGeo2, barMat );
+  var bar2_4= new THREE.Mesh( barGeo2, barMat );
+
+  var bar3= new THREE.Mesh( barGeo3, barMat );
+  var bar3_2= new THREE.Mesh( barGeo3, barMat );
+  var bar3_3= new THREE.Mesh( barGeo3, barMat );
+  var bar3_4= new THREE.Mesh( barGeo3, barMat );
+
+
+  Holder.add(bar);
+  Holder.add(bar_2);
+  Holder.add(bar_3);
+  Holder.add(bar_4);
+  bar.position.x=-3;
+  bar.position.z=-3;
+  bar_2.position.x=3;
+  bar_2.position.z=-3;
+  bar_3.position.x=-3;
+  bar_3.position.z=3;
+  bar_4.position.x=3;
+  bar_4.position.z=3;
+
+  Holder.add(bar2);
+  Holder.add(bar2_2);
+  Holder.add(bar2_3);
+  Holder.add(bar2_4);
+  bar2.position.y=-3;
+  bar2.position.z=-3;
+  bar2_2.position.y=3;
+  bar2_2.position.z=-3;
+  bar2_3.position.y=-3;
+  bar2_3.position.z=3;
+  bar2_4.position.y=3;
+  bar2_4.position.z=3;
+
+  Holder.add(bar3);
+  Holder.add(bar3_2);
+  Holder.add(bar3_3);
+  Holder.add(bar3_4);
+  bar3.position.x=-3;
+  bar3.position.y=-3;
+  bar3_2.position.x=3;
+  bar3_2.position.y=-3;
+  bar3_3.position.x=-3;
+  bar3_3.position.y=3;
+  bar3_4.position.x=3;
+  bar3_4.position.y=3;
+
+  Holder.traverse (
+   function (mesh) {
+     if (mesh instanceof THREE.Mesh) {
+       mesh.castShadow = true;
+        mesh.receiveShadow = true;
+      }
+    }
+  );
+  scene.add(Holder);
+  Holder.position.y = 30;
+  Holder.position.z = -17;
+  Holder.position.x = 15;
+
+  //Holder.position.x = 0;
+}
+
+</script>
+</body>
+
+</html>

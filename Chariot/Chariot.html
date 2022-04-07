@@ -1,0 +1,318 @@
+
+<!DOCTYPE html>
+
+<html>
+
+<head>
+  <title>✎✎Chariot</title>
+<style>
+
+body {
+  overflow: hidden
+}
+#info {
+  position: absolute;
+  top: 2%;
+  width: 100%;
+  padding: 10px;
+  text-align: center;
+  color: #ffff00
+}
+#toggle{
+  position: absolute;
+  padding: 10px;
+}
+</style>
+</head>
+
+<body>
+
+<div id="info">Chariot
+  <br/>WASD control move, JL control turret , IK control cannon
+  <br/>Space control fire
+</div>
+<button id="toggle" style="width:20%">God's eye view</button>
+<script src="https://threejs.org/build/three.min.js">
+</script>
+<script src="https://threejs.org/build/three.js"></script>
+<script src="https://threejs.org/examples/js/controls/OrbitControls.js">
+</script>
+<script src="https://code.jquery.com/jquery-2.1.4.min.js"></script>
+<script src="https://jyunming-chen.github.io/tutsplus/js/KeyboardState.js"></script>
+
+
+<script>
+class Ball {
+	constructor () {
+  	this.pos = new THREE.Vector3();
+    this.vel = new THREE.Vector3();
+    this.force = new THREE.Vector3(0,-10,0);
+    this.rebirth();
+  }
+
+  update (dt) {
+  if (this.pos.y > 0){
+		this.vel.add (this.force.clone().multiplyScalar(dt));
+  	this.pos.add (this.vel.clone().multiplyScalar(dt));
+    }
+		if (this.pos.y < 0) {
+      this.pos.y = 0;
+    	this.stopped = true;
+    }
+	}
+
+  getPos() {
+  	return this.pos;
+  }
+
+  setPos(pos){
+
+  	this.pos = pos;
+  }
+
+  get isStopped () {
+  	return this.stopped === true ? 1: 0;
+  }
+  rebirth(x,y,z) {
+  	this.stopped = false;
+  	this.vel.set (x,y,z).setLength(70);
+  }
+}
+var renderer, camera, controls, scene;
+var angle2 = 0,angle= 0;
+var tank, base, turret, turn, cannon ;
+var keyboard = new KeyboardState();
+var balls = [], ballMeshes = [];
+var toggle =false;
+var target,isHit;
+
+init();
+animate();
+buildTarget();
+
+$('#toggle').click(function() {
+	if(toggle){
+  	$('#toggle').text("God's eye view");
+  }
+  else{
+  	$('#toggle').text("First person");
+  }
+  	toggle=!toggle;
+});
+
+function buildTarget(){
+
+	var mat = new THREE.MeshBasicMaterial({
+  map: new THREE.TextureLoader().load('https://i.imgur.com/5Gb1D7Q.jpg')
+  });
+	var cube = new THREE.BoxGeometry( 20, 40, 10 );
+
+  target = new THREE.Mesh( cube.clone(), mat.clone() );
+  target.position.set(Math.random() * 330 - 100,20,Math.random() * 330 - 100);
+  scene.add( target );
+}
+function init() {
+
+  renderer = new THREE.WebGLRenderer({
+	  antialias: true
+	});
+  renderer.setSize(window.innerWidth, window.innerHeight);
+  renderer.setClearColor(0x000000);
+  document.body.appendChild(renderer.domElement);
+
+  camera = new THREE.PerspectiveCamera(90, window.innerWidth / window.innerHeight, 1, 1000);
+
+  controls = new THREE.OrbitControls(camera, renderer.domElement);
+
+  scene = new THREE.Scene();
+
+	//var gridXZ = new THREE.GridHelper(1000, 50, 'red', 'white');
+  //scene.add(gridXZ);
+  //axes = new THREE.AxisHelper (20);
+  //scene.add (axes);
+
+  tank =  buildTank();
+  scene.add (tank);
+
+ var texture = new THREE.TextureLoader().load('https://i.imgur.com/E8vRkxH.jpg');
+ 	texture.wrapS = THREE.RepeatWrapping;
+ 	texture.wrapT = THREE.RepeatWrapping;
+  texture.repeat.set(10, 10);
+  var floor = new THREE.PlaneGeometry(1000,1000,1,1);
+  mesh = new THREE.Mesh(floor,
+  new THREE.MeshBasicMaterial({
+    map: texture,
+    side: THREE.DoubleSide
+  }));
+  mesh.rotation.x=Math.PI/2;
+  scene.add (mesh);
+  window.addEventListener('resize', onWindowResize, false);
+
+}
+function onWindowResize() {
+  camera.aspect = window.innerWidth / window.innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(window.innerWidth, window.innerHeight);
+}
+
+function animate() {
+
+  keyboard.update();
+  if(toggle){
+  	controls.update();
+  }
+  else{
+  	camera.position.copy(turret.localToWorld(new THREE.Vector3(0,-12,5)));
+    camera.lookAt(cannon.localToWorld(new THREE.Vector3(0,5,0)));
+  }
+ 	if (keyboard.down("space")) {
+    cannonBall();
+   }
+  else {
+  	balls.forEach (function (ball) {
+	    ball.update (0.1);
+    })}
+
+  for (let i = 0; i < balls.length; i++) {
+  	ballMeshes[i].position.copy (balls[i].getPos());
+    if(hit(ballMeshes[i])){
+    	isHit = true;
+    }
+  }
+
+  if(isHit === true){
+  	target.position.y -= 0.9;
+    target.rotation.x += Math.PI/60;
+   	if (target.position.y <0) {
+			target.position.y = 0;
+      buildTarget();
+      isHit = false;
+ 		}
+  }
+
+ // for (let i = 0; i < balls.length; i++) {
+  	//ballMeshes[i].position.copy (balls[i].getPos());
+ // }
+  if(keyboard.down("W")||keyboard.pressed("W")){
+  	tank.position.z -= 0.5 * Math.cos(angle);
+    tank.position.x -= 0.5 * Math.sin(angle);
+  }
+  if(keyboard.down("S")||keyboard.pressed("S")) {
+  	tank.position.z += 0.5 * Math.cos(angle);
+    tank.position.x += 0.5 * Math.sin(angle);
+  }
+  if(keyboard.down("A")||keyboard.pressed("A")){
+  	angle += 0.02;
+    tank.rotation.y = angle;
+  }
+  if(keyboard.down("D")||keyboard.pressed("D")){
+  	angle -= 0.02;
+    tank.rotation.y = angle;
+  }
+  /////turret
+  if(keyboard.down("L")||keyboard.pressed("L")){
+    turret.rotation.y += 0.02;
+  }
+  if(keyboard.down("J")||keyboard.pressed("J")){
+    turret.rotation.y -= 0.02;
+  }
+
+  /////turn
+  if(keyboard.down("I")||keyboard.pressed("I")){
+    if(angle2<Math.PI/4){
+    	angle2 += 0.02
+   		turn.rotation.x = angle2;
+    }
+  }
+  if(keyboard.down("K")||keyboard.pressed("K")){
+    if(angle2>-Math.PI/8) {
+    	angle2 -= 0.02
+   		turn.rotation.x = angle2;
+    }
+  }
+
+  renderer.render (scene, camera);
+  requestAnimationFrame (animate);
+
+}
+function buildTank(){
+	var Tank = new THREE.Object3D();
+  var mat1 = new THREE.MeshBasicMaterial({
+    map: new THREE.TextureLoader().load('https://i.imgur.com/4b4ze5n.jpg')
+  });
+  var mat2 = new THREE.MeshBasicMaterial({
+    map: new THREE.TextureLoader().load('https://i.imgur.com/4b4ze5n.jpg')
+  });
+  var mat3 = new THREE.MeshBasicMaterial({
+    map: new THREE.TextureLoader().load('https://i.imgur.com/4b4ze5n.jpg')
+  });
+  var mat4 = new THREE.MeshBasicMaterial({
+    map: new THREE.TextureLoader().load('https://i.imgur.com/4b4ze5n.jpg')
+  });
+  var matNor = new THREE.MeshNormalMaterial;
+
+   base = new THREE.Mesh(new THREE.BoxGeometry(20 , 40, 10) , mat1);
+   turret = new THREE.Mesh(new THREE.CylinderGeometry(10, 10, 10, 32), mat2);
+   turn = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.5, 10), mat3);
+   cannon = new THREE.Mesh(new THREE.CylinderGeometry(1.5, 1.5, 10), mat4);
+  console.log(typeof(cannon));
+  Tank.add(base);
+  base.add(turret);
+  turret.add(turn);
+  turn.add(cannon);
+  console.log(typeof(cannon));
+
+  base.rotation.x = Math.PI/2;
+  base.position.y = 5;
+  base.position.z = 10;
+
+  turret.position.z = -10;
+  turret.position.y = -10;
+  turret.rotation.x = Math.PI/2;
+  turn.rotation.z = Math.PI/2;
+  turn.position.z = 10;
+
+  cannon.rotation.x = Math.PI/2;
+  cannon.position.z = 5 ;
+
+
+  return Tank;
+}
+function cannonBall(){
+	var mat = new THREE.MeshBasicMaterial({
+    map: new THREE.TextureLoader().load('https://i.imgur.com/jHc1I0Z.png')
+  });
+
+	var geometry = new THREE.SphereGeometry(1.5, 20, 20);
+ 	ballMesh = new THREE.Mesh(geometry, mat);
+
+  let ball = new Ball();
+	balls.push (ball);
+ 	let thisMesh = ballMesh.clone();
+  ballMeshes.push (thisMesh);
+  ball.setPos(cannon.localToWorld(new THREE.Vector3(0,5,0)));
+  let x = cannon.localToWorld(new THREE.Vector3(0,5,0)).x - cannon.localToWorld(new THREE.Vector3(0,0,0)).x;
+  let y = cannon.localToWorld(new THREE.Vector3(0,5,0)).y - cannon.localToWorld(new THREE.Vector3(0,0,0)).y;
+  let z = cannon.localToWorld(new THREE.Vector3(0,5,0)).z - cannon.localToWorld(new THREE.Vector3(0,0,0)).z;
+  ball.rebirth(x,y,z);
+  scene.add(thisMesh);
+}
+
+function hit(ball) {
+	if((ball.position.x >= target.position.x - 10.5) &&(ball.position.x <= target.position.x + 10.5)&&
+  (ball.position.y >= target.position.y - 20.5)&& (ball.position.y <= target.position.y + 20.5)&&
+  (ball.position.z >= target.position.z - 5.5) && (ball.position.z <= target.position.z + 5.5))
+  	return true;
+  else
+  	return false;
+}
+
+</script>
+
+
+
+
+
+</body>
+
+</html>
